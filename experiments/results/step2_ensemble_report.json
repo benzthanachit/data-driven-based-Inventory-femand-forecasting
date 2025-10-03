@@ -1,24 +1,13 @@
 {
-  "timestamp": "2025-09-27T21:02:06.571253",
-  "optimization": {
-    "weights": {
-      "sarimax": 6.927791673660979e-13,
-      "lstm": 3.0553337637684313e-13,
-      "lightgbm": 0.9999999999990017
-    },
-    "best_score": 1.4117513586846764,
-    "optimization_method": "scipy",
-    "loss_function": "mae"
-  },
-  "performance": {
-    "ensemble": {
-      "mae": 1.4117513586846764,
-      "rmse": 1.7564480316934006
-    }
-  },
+  "item": "HOBBIES_1_001",
+  "store": "CA_1",
+  "test_mae": 0.433540450561552,
+  "test_rmse": 0.6089592555054838,
   "weights": {
-    "sarimax": 6.927791673660979e-13,
-    "lstm": 3.0553337637684313e-13,
-    "lightgbm": 0.9999999999990017
-  }
+    "sarimax": 1.6575089488821627e-17,
+    "lstm": 0.04907427310459976,
+    "lightgbm": 0.9509257268954002
+  },
+  "opt_method": "scipy",
+  "timestamp": "2025-10-03T13:52:23.767887"
 }
