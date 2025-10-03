@@ -49,45 +49,43 @@ def create_directories():
     print("📁 Created necessary directories")
 
 
-def step1_prepare_data():
-    """Step 1A: Prepare synthetic data for testing"""
+def step1_data_preparation():
+    """Step 1A: Data Preparation - Updated for M5"""
     print("\n" + "="*60)
-    print("🔸 STEP 1A: DATA PREPARATION")
+    print("🔸 STEP 1A: M5 DATA PREPARATION")
     print("="*60)
     
-    # Create synthetic data
-    print("📊 Creating synthetic data...")
-    df = create_sample_data(
-        n_samples=730,  # 2 years of data
-        seasonal=True,
-        random_seed=42
-    )
-    
-    # Save synthetic data
-    df.to_csv('data/synthetic/demand_data.csv', index=False)
-    print(f"✅ Created and saved synthetic data: {df.shape[0]} samples")
-    
-    # Check data quality
-    quality_report = check_data_quality(df, 'demand')
-    print(f"📋 Data quality check completed")
-    print(f"   - Date range: {quality_report['date_range'][0]} to {quality_report['date_range'][1]}")
-    print(f"   - Demand range: {quality_report['target_stats']['min']:.2f} to {quality_report['target_stats']['max']:.2f}")
-    print(f"   - Mean demand: {quality_report['target_stats']['mean']:.2f}")
-    
-    # Split data
-    train_df, val_df, test_df = split_time_series_data(df, 'demand', 
-                                                      train_ratio=0.7, 
-                                                      val_ratio=0.15, 
-                                                      test_ratio=0.15)
-    
-    # Save split data
-    train_df.to_csv('data/processed/train_data.csv', index=False)
-    val_df.to_csv('data/processed/val_data.csv', index=False)
-    test_df.to_csv('data/processed/test_data.csv', index=False)
-    
-    print(f"✅ Data split completed: Train({len(train_df)}) | Val({len(val_df)}) | Test({len(test_df)})")
-    
-    return train_df, val_df, test_df
+    try:
+        from utils.data_utils import prepare_m5_data_for_models
+        
+        # Select M5 item and store
+        item_id = "HOBBIES_1_001"  # Adjust as needed
+        store_id = "CA_1"          # Adjust as needed
+        
+        print(f"📊 Processing M5 data for item: {item_id}, store: {store_id}")
+        
+        # Prepare data splits
+        train_df, val_df, test_df = prepare_m5_data_for_models(
+            item_id=item_id,
+            store_id=store_id,
+            train_ratio=0.7,
+            val_ratio=0.15
+        )
+        
+        print("✅ M5 data preparation completed")
+        print(f"   - Date range: {train_df['date'].min()} to {test_df['date'].max()}")
+        print(f"   - Demand range: {train_df['demand'].min():.0f} to {train_df['demand'].max():.0f}")
+        print(f"   - Mean demand: {train_df['demand'].mean():.2f}")
+        
+        print(f"M5 data splits - Train: {len(train_df)}, Val: {len(val_df)}, Test: {len(test_df)}")
+        
+        return train_df, val_df, test_df
+        
+    except Exception as e:
+        print(f"❌ M5 data preparation failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None, None, None
 
 
 def step1_test_sarimax(train_df, val_df, test_df):
@@ -348,7 +346,7 @@ def main():
     create_directories()
     
     # Step 1A: Prepare data
-    train_df, val_df, test_df = step1_prepare_data()
+    train_df, val_df, test_df = step1_data_preparation()
     
     # Initialize results storage
     results = {}

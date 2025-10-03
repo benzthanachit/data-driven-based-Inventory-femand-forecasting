@@ -2,7 +2,7 @@
 """
 Data utility functions for the hybrid inventory forecasting project
 """
-
+import os
 import numpy as np
 import pandas as pd
 from typing import Tuple, Optional
@@ -272,3 +272,55 @@ if __name__ == "__main__":
     # Save sample data
     save_data(df, 'data/synthetic/sample_data.csv')
     print("Sample data saved to data/synthetic/sample_data.csv")
+
+def load_m5_data(item_id: str = "HOBBIES_1_001", 
+                store_id: str = "CA_1",
+                force_reprocess: bool = False) -> pd.DataFrame:
+    """
+    Load and process M5 data for specified item and store
+    """
+    from .m5_data_processor import process_m5_to_standard_format
+    
+    processed_file = f"data/processed/m5_{item_id}_{store_id}_data.csv"
+    
+    if not os.path.exists(processed_file) or force_reprocess:
+        logger.info(f"Processing M5 data for {item_id} in {store_id}")
+        process_m5_to_standard_format(item_id, store_id, "data/processed")
+    
+    # Load processed data
+    df = pd.read_csv(processed_file)
+    df['date'] = pd.to_datetime(df['date'])
+    
+    logger.info(f"Loaded M5 data: {len(df)} records from {df['date'].min()} to {df['date'].max()}")
+    
+    return df
+
+
+def prepare_m5_data_for_models(item_id: str = "HOBBIES_1_001", 
+                              store_id: str = "CA_1",
+                              train_ratio: float = 0.7,
+                              val_ratio: float = 0.15) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Prepare M5 data splits for training
+    """
+    
+    # Load M5 data
+    df = load_m5_data(item_id, store_id)
+    
+    # Split data chronologically
+    n_samples = len(df)
+    train_size = int(n_samples * train_ratio)
+    val_size = int(n_samples * val_ratio)
+    
+    train_df = df.iloc[:train_size].copy()
+    val_df = df.iloc[train_size:train_size + val_size].copy()
+    test_df = df.iloc[train_size + val_size:].copy()
+    
+    # Save splits
+    train_df.to_csv('data/processed/train_data.csv', index=False)
+    val_df.to_csv('data/processed/val_data.csv', index=False)  
+    test_df.to_csv('data/processed/test_data.csv', index=False)
+    
+    logger.info(f"Data splits - Train: {len(train_df)}, Val: {len(val_df)}, Test: {len(test_df)}")
+    
+    return train_df, val_df, test_df

@@ -265,6 +265,23 @@ class LightGBMModel:
         
         logger.info(f"Created {len(feature_df.columns) - len(df.columns)} new features")
         
+        # แปลง object columns เป็น category หรือ numeric สำหรับ LightGBM
+        object_cols = feature_df.select_dtypes(include=['object']).columns.tolist()
+        if object_cols:
+            logger.info(f"Converting object columns to categorical: {object_cols}")
+            for col in object_cols:
+                # ลองแปลงเป็น numeric ก่อน ถ้าไม่ได้ใช้ category
+                try:
+                    feature_df[col] = pd.to_numeric(feature_df[col], errors='coerce')
+                    # ถ้าแปลงแล้วมี NaN เยอะ แสดงว่าเป็น text ให้ใช้ category
+                    if feature_df[col].isna().sum() > len(feature_df) * 0.5:
+                        feature_df[col] = df[col].astype('category').cat.codes
+                    else:
+                        feature_df[col] = feature_df[col].fillna(0)
+                except:
+                    # ถ้าแปลง numeric ไม่ได้ ให้ใช้ category codes
+                    feature_df[col] = feature_df[col].astype('category').cat.codes
+
         return feature_df
     
     def _select_features(self, X_train: pd.DataFrame, y_train: pd.Series,
@@ -373,26 +390,44 @@ class LightGBMModel:
             X_train_scaled = X_train
             X_val_scaled = X_val
         
+        # ตรวจสอบและแปลง object columns ก่อน train
+        X_train_clean = X_train_scaled.copy()
+        X_val_clean = X_val_scaled.copy() if X_val_scaled is not None else None
+
+        # แปลง object columns ที่เหลือเป็น numeric
+        object_cols = X_train_clean.select_dtypes(include=['object']).columns.tolist()
+        if object_cols:
+            logger.warning(f"Found object columns in training data: {object_cols}")
+            for col in object_cols:
+                X_train_clean[col] = pd.Categorical(X_train_clean[col]).codes
+                if X_val_clean is not None:
+                    X_val_clean[col] = pd.Categorical(X_val_clean[col]).codes
+
+        # ตรวจสอบว่าไม่มี object columns เหลือ
+        remaining_objects = X_train_clean.select_dtypes(include=['object']).columns.tolist()
+        if remaining_objects:
+            raise ValueError(f"Still have object columns: {remaining_objects}")
+
         # Prepare datasets
         train_data = lgb.Dataset(
-            X_train_scaled, 
+            X_train_clean, 
             label=y_train,
             weight=sample_weight,
-            categorical_feature=categorical_features or 'auto'
+            categorical_feature=categorical_features or []
         )
         
         valid_sets = [train_data]
         valid_names = ['train']
         
-        if X_val_scaled is not None and y_val is not None:
+        if X_val_clean is not None and y_val is not None:
             val_data = lgb.Dataset(
-                X_val_scaled, 
+                X_val_clean, 
                 label=y_val,
-                categorical_feature=categorical_features or 'auto'
+                categorical_feature=categorical_features or []
             )
             valid_sets.append(val_data)
             valid_names.append('valid')
-        
+
         # Callbacks
         callbacks = []
         if early_stopping_rounds > 0:
@@ -488,9 +523,16 @@ class LightGBMModel:
         else:
             X_scaled = X
         
+        # แปลง object columns ถ้ามี (เหมือนใน train)
+        X_predict = X_scaled.copy()
+        object_cols = X_predict.select_dtypes(include=['object']).columns.tolist()
+        if object_cols:
+            for col in object_cols:
+                X_predict[col] = pd.Categorical(X_predict[col]).codes
+
         # Make predictions
         predictions = self.model.predict(
-            X_scaled, 
+            X_predict, 
             num_iteration=num_iteration or self.best_iteration
         )
         
