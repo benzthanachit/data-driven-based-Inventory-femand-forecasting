@@ -64,6 +64,7 @@ class LightGBMModel:
             'objective': 'regression',
             'metric': 'l1',  # FIXED: Changed from 'mae' to 'l1'
             'boosting_type': 'gbdt',
+            'device': 'cpu',
             'num_leaves': 31,
             'learning_rate': 0.05,
             'feature_fraction': 0.9,
@@ -438,6 +439,12 @@ class LightGBMModel:
         
         # Train model
         try:
+            params['device'] = 'cpu'
+            params['gpu_platform_id'] = -1
+            params['gpu_device_id'] = -1
+            
+            print("⚡ FORCE CPU MODE ACTIVATED: params['device'] set to 'cpu'")
+            
             self.model = lgb.train(
                 self.params,
                 train_data,
