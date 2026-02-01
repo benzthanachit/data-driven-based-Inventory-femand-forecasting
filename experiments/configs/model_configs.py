@@ -38,6 +38,8 @@ class ModelConfig:
         'sequence_length': 30,
         'lstm_units': [64, 32],
         'dropout_rate': 0.1,
+        'lstm_units': [64, 32],
+        'dropout_rate': 0.1,
         'learning_rate': 0.001,
         'batch_size': 32,
         'epochs': 100,
@@ -55,7 +57,7 @@ class ModelConfig:
             'objective': 'regression',
             'metric': 'l1',
             'boosting_type': 'gbdt',
-            'device_type': 'cuda', # Enable GPU
+            'device_type': 'gpu', # Enable GPU
             'num_leaves': 31,
             'learning_rate': 0.05,
             'feature_fraction': 0.9,
