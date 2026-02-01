@@ -33,9 +33,45 @@ class M5DataProcessor:
         logger.info(f"Loaded calendar: {self.calendar_df.shape}")
         logger.info(f"Loaded prices: {self.prices_df.shape}")
         
-    def select_item_store(self, item_id: str = "HOBBIES_1_001", store_id: str = "CA_1"):
+    def get_items_by_category(self, category: str, store_id: str = "CA_1", n_items: int = 20, strategy: str = 'top_volume') -> list:
+        """
+        Get list of item_ids based on category and strategy
+        strategies: 'top_volume', 'random', 'intermittent'
+        """
+        # Filter for store and category
+        mask = (self.sales_df['store_id'] == store_id) & (self.sales_df['cat_id'] == category)
+        subset = self.sales_df[mask].copy()
+        
+        if subset.empty:
+            logger.warning(f"No items found for category {category} in {store_id}")
+            return []
+            
+        # Calculate total volume for ranking
+        day_cols = [c for c in subset.columns if c.startswith('d_')]
+        subset['total_volume'] = subset[day_cols].sum(axis=1)
+        
+        if strategy == 'top_volume':
+            # Select top N items by volume
+            selected = subset.nlargest(n_items, 'total_volume')
+        elif strategy == 'random':
+            # Select random N items
+            selected = subset.sample(n=min(n_items, len(subset)), random_state=42)
+        elif strategy == 'intermittent':
+            # Select items with high zero counts (e.g. > 50% zeros) but still some volume
+            # This is a simple heuristic
+            zeros_count = (subset[day_cols] == 0).sum(axis=1)
+            subset['zero_ratio'] = zeros_count / len(day_cols)
+            # Filter for 30% to 70% zeros
+            intermittent = subset[(subset['zero_ratio'] > 0.3) & (subset['zero_ratio'] < 0.7)]
+            selected = intermittent.nlargest(n_items, 'total_volume') 
+
+        item_ids = selected['item_id'].tolist()
+        logger.info(f"Selected {len(item_ids)} items using strategy '{strategy}'")
+        return item_ids
+
+    def select_item_store(self, item_id: str, store_id: str):
         """Select specific item and store combination"""
-        logger.info(f"Processing item: {item_id}, store: {store_id}")
+        # logger.info(f"Processing item: {item_id}, store: {store_id}")
         
         # Filter sales data
         item_data = self.sales_df[
@@ -135,7 +171,7 @@ class M5DataProcessor:
         )
         
         # Forward fill missing prices
-        df['sell_price'] = df['sell_price'].fillna(method='ffill')
+        df['sell_price'] = df['sell_price'].ffill()
         df['sell_price'] = df['sell_price'].fillna(1.0)  # Fill remaining with default
         
         return df
@@ -161,3 +197,40 @@ def process_m5_to_standard_format(item_id: str = "HOBBIES_1_001",
     logger.info(f"M5 data processed and saved to {output_path}")
     
     return str(output_path)
+
+def process_multiple_items(category: str = "HOBBIES",
+                         store_id: str = "CA_1",
+                         n_items: int = 20,
+                         strategy: str = 'top_volume',
+                         output_dir: str = "data/processed") -> list:
+    """
+    Process multiple items efficiently (load data once)
+    """
+    # Initialize processor
+    processor = M5DataProcessor()
+    processor.load_m5_data()
+    
+    # Get items
+    item_ids = processor.get_items_by_category(category, store_id, n_items, strategy)
+    
+    processed_files = []
+    
+    for item_id in item_ids:
+        try:
+            # Create time series
+            df = processor.create_time_series(item_id, store_id)
+            
+            # Save processed data
+            output_path = Path(output_dir) / f"m5_{item_id}_{store_id}_data.csv"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            df.to_csv(output_path, index=False)
+            processed_files.append(str(output_path))
+            
+            # logger.info(f"Processed {item_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to process {item_id}: {str(e)}")
+            
+    logger.info(f"Successfully processed {len(processed_files)}/{len(item_ids)} items")
+    return processed_files

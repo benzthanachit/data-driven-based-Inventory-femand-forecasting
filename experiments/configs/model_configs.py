@@ -36,8 +36,8 @@ class ModelConfig:
     # LSTM model configuration  
     LSTM_CONFIG = {
         'sequence_length': 30,
-        'lstm_units': [50, 50],
-        'dropout_rate': 0.2,
+        'lstm_units': [64, 32],
+        'dropout_rate': 0.1,
         'learning_rate': 0.001,
         'batch_size': 32,
         'epochs': 100,
@@ -45,8 +45,8 @@ class ModelConfig:
         'validation_split': 0.2,
         'optimizer': 'adam',
         'batch_norm': False,
-        'l2_reg': 0.0,
-        'scaler_type': 'minmax'
+        'l2_reg': 0.001,
+        'scaler_type': 'standard'
     }
     
     # LightGBM configuration
@@ -55,6 +55,7 @@ class ModelConfig:
             'objective': 'regression',
             'metric': 'l1',
             'boosting_type': 'gbdt',
+            'device_type': 'gpu', # Enable GPU
             'num_leaves': 31,
             'learning_rate': 0.05,
             'feature_fraction': 0.9,
@@ -156,7 +157,7 @@ class DevelopmentConfig(ModelConfig):
     
     LSTM_CONFIG = ModelConfig.LSTM_CONFIG.copy()
     LSTM_CONFIG.update({
-        'epochs': 20,  # Faster training for development
+        'epochs': 50,  # Increased for better convergence
         'patience': 10
     })
     
