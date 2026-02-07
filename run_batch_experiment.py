@@ -85,7 +85,7 @@ def run_experiment_for_item(item_file: str, item_id: str, n_folds: int = 5) -> l
             
             # Store Base Results
             models_map = {
-                'SARIMAX': sarimax_res, 
+                # 'SARIMAX': sarimax_res, 
                 'LSTM': lstm_res, 
                 'LightGBM': lgbm_res
             }
