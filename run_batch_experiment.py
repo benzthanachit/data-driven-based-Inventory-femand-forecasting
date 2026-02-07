@@ -248,10 +248,16 @@ def main():
 
     # 3. Final Save and specific analysis
     final_df = pd.DataFrame(all_results)
-    final_df.to_csv('experiments/results/results_multi_item.csv', index=False)
+    
+    # สร้างชื่อไฟล์พร้อม Timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S") # ตัวอย่าง: 20251014_153000
+    output_filename = f'experiments/results/results_multi_item_{timestamp}.csv'
+    
+    # บันทึกด้วยชื่อใหม่
+    final_df.to_csv(output_filename, index=False)
     
     print("\n✅ Experiment Completed!")
-    print(f"Results saved to experiments/results/results_multi_item.csv")
+    print(f"Results saved to {output_filename}")
     
     # Show Summary
     if not final_df.empty and 'mae' in final_df.columns:
