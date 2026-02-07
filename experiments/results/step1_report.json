@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-10-03T12:55:21.571488",
+  "models_tested": [
+    "sarimax",
+    "lstm",
+    "lightgbm"
+  ],
+  "performance_comparison": {
+    "sarimax": {
+      "mae": 0.7683747275733335,
+      "rmse": 0.9783800179082589
+    },
+    "lstm": {
+      "mae": 0.7742745876312256,
+      "rmse": 1.0208957938464192
+    },
+    "lightgbm": {
+      "mae": 0.2465076410635409,
+      "rmse": 0.4155971950553717
+    }
+  },
+  "best_model": {
+    "name": "lightgbm",
+    "mae": 0.2465076410635409,
+    "rmse": 0.4155971950553717
+  },
+  "status": "completed"
+}

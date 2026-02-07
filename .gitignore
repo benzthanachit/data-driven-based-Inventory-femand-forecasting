@@ -12,6 +12,8 @@ build/
 develop-eggs/
 dist/
 downloads/
+
+data/raw/
 eggs/
 .eggs/
 lib/
@@ -140,6 +142,7 @@ celerybeat.pid
 .venv
 env/
 venv/
+venv_wsl/
 ENV/
 env.bak/
 venv.bak/

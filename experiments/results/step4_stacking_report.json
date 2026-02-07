@@ -1,0 +1,15 @@
+{
+  "timestamp": "2025-10-11T09:43:19.234900",
+  "item": "HOBBIES_1_001",
+  "store": "CA_1",
+  "ensemble_type": "stacking",
+  "meta_learner": "Ridge",
+  "test_mae": 0.17546325845714233,
+  "test_rmse": 0.2741047283565318,
+  "meta_learner_coef": [
+    -0.09185377739996821,
+    -0.04922171285744877,
+    1.0006487611926664
+  ],
+  "status": "completed"
+}
