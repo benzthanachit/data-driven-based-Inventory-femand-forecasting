@@ -439,9 +439,13 @@ class LightGBMModel:
         
         # Train model
         try:
-            params['device'] = 'cpu'
-            params['gpu_platform_id'] = -1
-            params['gpu_device_id'] = -1
+            # Force CPU mode by removing potential GPU parameters
+            if 'device_type' in self.params:
+                self.params.pop('device_type')
+            
+            self.params['device'] = 'cpu'
+            self.params['gpu_platform_id'] = -1
+            self.params['gpu_device_id'] = -1
             
             print("⚡ FORCE CPU MODE ACTIVATED: params['device'] set to 'cpu'")
             

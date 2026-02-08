@@ -2,6 +2,10 @@
 """
 Batch Experiment Script for Multi-Item Inventory Forecasting
 Target: Master's Thesis Defense (Final Sprint)
+Experiment ID: EXP-003
+Change Log: 
+- Base Models: LightGBM + LSTM (SARIMAX skipped)
+- Meta Learner: LinearRegression (NNLS) instead of Ridge
 """
 
 import os
@@ -39,35 +43,24 @@ def run_experiment_for_item(item_file: str, item_id: str, n_folds: int = 5) -> l
     
     # Configuration
     config = get_config('development')
-    test_horizon = config.DATA_CONFIG['forecast_horizon'] # e.g. 30 days
+    test_horizon = config.DATA_CONFIG['forecast_horizon'] 
     
-    # Create folds (Rolling Origin)
-    # We want 5 test periods at the end of the series
     total_len = len(df)
     
     logger.info(f"Processing Item: {item_id} (Length: {total_len})")
     
     for fold in range(n_folds):
         try:
-            # Define indices
-            # Fold 0: Test is the last block
-            # Fold 1: Test is the 2nd to last block ...
-            # Actually, standard TimeSeriesSplit expands forward.
-            # But "Rolling Origin" usually means we test on T+1, T+2...
-            # Let's take the last 5 months as 5 folds.
-            
+            # Rolling Origin Split
             test_end_idx = total_len - (fold * test_horizon)
             test_start_idx = test_end_idx - test_horizon
             
-            if test_start_idx < 100: # Ensure enough training data
+            if test_start_idx < 100: 
                 break
                 
-            # Split: Train+Val | Test
             train_val_df = df.iloc[:test_start_idx].copy()
             test_df = df.iloc[test_start_idx:test_end_idx].copy()
             
-            # Nested Split for Stacking: Train | Val
-            # Use last horizon of train_val for validation (stacking training)
             val_start_idx = len(train_val_df) - test_horizon
             
             train_df = train_val_df.iloc[:val_start_idx].copy()
@@ -76,9 +69,10 @@ def run_experiment_for_item(item_file: str, item_id: str, n_folds: int = 5) -> l
             logger.info(f"  Fold {fold+1}: Train={len(train_df)}, Val={len(val_df)}, Test={len(test_df)}")
             
             # 1. Train Base Models
-            # SARIMAX
-            # sarimax_res = train_sarimax_wrapper(train_df, val_df, test_df, config)
+            
+            # --- SARIMAX: SKIPPED for EXP-003 ---
             sarimax_res = {'status': 'skipped'}
+            
             # LSTM
             lstm_res = train_lstm_wrapper(train_df, val_df, test_df, config)
             # LightGBM
@@ -112,39 +106,24 @@ def run_experiment_for_item(item_file: str, item_id: str, n_folds: int = 5) -> l
                     })
 
             # 2. Train Stacking Ensemble
-            # We need predictions on Validation Set to train Stacking
-            # Get valid predictions from trained base models
-            # Note: Wrapper returns Test predictions. We need a way to get Val predictions.
-            # Inspecting wrappers: they accept val_df but use it for early stopping.
-            # We need to explicitly predict on val_df using the trained models.
-            
             valid_preds = {}
             test_preds = {}
             valid_y = val_df['demand'].values
             
-            # Helper to get predictions
             available_models = []
             
+            # SARIMAX (Skipped logic)
             if sarimax_res.get('status') == 'success':
-                # SARIMAX predict val (need to handle steps/exog carefully, or used fitted values if in-sample)
-                # For simplicity in this sprint, we re-predict steps ahead from train end
-                # Model is trained on train_df. Val follows immediately.
                 try:
                     m = sarimax_res['model']
-                    # Forecast steps=len(val)
                     valid_preds['SARIMAX'] = m.predict(steps=len(val_df)).values
-                    test_preds['SARIMAX'] = sarimax_res['predictions'].values # Wrapper returns test preds
+                    test_preds['SARIMAX'] = sarimax_res['predictions'].values
                     available_models.append('SARIMAX')
                 except Exception as e: logger.warning(f"SARIMAX Val Pred failed: {e}")
 
             if lstm_res['status'] == 'success':
                 try:
                     m = lstm_res['model']
-                    # Predict Val
-                    # LSTM needs context. train_df end is context for val_df.
-                    # Model.predict wrapper logic:
-                    # predictions = model.predict(full_data, steps=len(test_df))
-                    # We replicate this for val
                     input_data = train_df['demand'].values
                     valid_preds['LSTM'] = m.predict(input_data, steps=len(val_df))
                     test_preds['LSTM'] = lstm_res['predictions']
@@ -154,10 +133,6 @@ def run_experiment_for_item(item_file: str, item_id: str, n_folds: int = 5) -> l
             if lgbm_res['status'] == 'success':
                 try:
                     m = lgbm_res['model']
-                    # Re-create features for Val (already done conceptually in wrapper but we need access)
-                    # We can use the model to predict on X_val if we can construct it.
-                    # LightGBMModel.predict takes X.
-                    # We can re-use the create_features method.
                     val_feat = m.create_features(val_df, 'demand')
                     feat_cols = [c for c in val_feat.columns if c not in ['date', 'demand']]
                     X_val = val_feat[feat_cols]
@@ -166,17 +141,15 @@ def run_experiment_for_item(item_file: str, item_id: str, n_folds: int = 5) -> l
                     available_models.append('LightGBM')
                 except Exception as e: logger.warning(f"LightGBM Val Pred failed: {e}")
 
-            # 3. Execute Stacking if we have at least 2 models
+            # 3. Execute Stacking
             if len(available_models) >= 2:
                 try:
-                    stacker = StackingEnsemble(meta_learner_type='ridge')
+                    # --- EXP-003 CHANGE: Use 'linear' (NNLS) ---
+                    stacker = StackingEnsemble(meta_learner_type='linear')
+                    # -------------------------------------------
                     
-                    # Filter valid_preds to ensure same length (should be)
-                    # Train Stacker
                     stacker.train(valid_preds, valid_y)
                     
-                    # Evaluate Stacker on Test
-                    # Use test_preds from base models
                     stacking_metrics = stacker.evaluate(test_preds, test_df['demand'].values)
                     
                     results_list.append({
@@ -202,11 +175,10 @@ def run_experiment_for_item(item_file: str, item_id: str, n_folds: int = 5) -> l
     return results_list
 
 def main():
-    print("🚀 Starting Batch Experiment (Multi-Item)")
-    print("=========================================")
+    print("🚀 Starting Batch Experiment (Multi-Item) - EXP-003 (NNLS)")
+    print("==========================================================")
     
-    # 1. Select and Process Items
-    n_items = 5 # Start with 5 for testing, user asked for 20-50
+    n_items = 5 
     print(f"preparing data for {n_items} items...")
     
     processed_files = process_multiple_items(
@@ -221,17 +193,10 @@ def main():
 
     all_results = []
     
-    # 2. Main Loop
     for i, file_path in enumerate(processed_files):
-        # Extract item_id from filename (m5_{item_id}_{store_id}_data.csv)
         filename = Path(file_path).name
         parts = filename.split('_')
-        # HOBBIES_1_001 is parts[1] + '_' + parts[2] + '_' + parts[3] 
-        # Actually logic inside process_multiple_items naming: f"m5_{item_id}_{store_id}_data.csv"
-        # Item ID could contain underscores.
-        # Safe way: Load DF and check columns? Or just rely on string parsing if we know format.
-        # M5 IDs like HOBBIES_1_001.
-        item_id = "_".join(parts[1:-3]) # approximation
+        item_id = "_".join(parts[1:-3]) 
         
         print(f"\nProcessing {i+1}/{len(processed_files)}: {item_id}")
         
@@ -239,7 +204,6 @@ def main():
             results = run_experiment_for_item(file_path, item_id)
             all_results.extend(results)
             
-            # Intermediate Save
             pd.DataFrame(all_results).to_csv('experiments/results/results_multi_item_temp.csv', index=False)
             
         except Exception as e:
@@ -247,20 +211,16 @@ def main():
             import traceback
             traceback.print_exc()
 
-    # 3. Final Save and specific analysis
     final_df = pd.DataFrame(all_results)
     
-    # สร้างชื่อไฟล์พร้อม Timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S") # ตัวอย่าง: 20251014_153000
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_filename = f'experiments/results/results_multi_item_{timestamp}.csv'
     
-    # บันทึกด้วยชื่อใหม่
     final_df.to_csv(output_filename, index=False)
     
     print("\n✅ Experiment Completed!")
     print(f"Results saved to {output_filename}")
     
-    # Show Summary
     if not final_df.empty and 'mae' in final_df.columns:
         summary = final_df[final_df['status']=='success'].groupby('model')[['mae', 'rmse']].mean()
         print("\n📊 Average Performance:")
